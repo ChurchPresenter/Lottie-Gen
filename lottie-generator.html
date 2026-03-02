@@ -3655,15 +3655,16 @@ function download() {
   const infoVal = (document.getElementById('infoText').value.trim());
   const styleEl = document.getElementById('styleType');
   const styleLabel = styleEl.options[styleEl.selectedIndex].text.replace(/\s*—.*/, '').trim();
-  const baseName = (infoVal ? nameVal + ' - ' + infoVal : nameVal);
-  const filename = styleLabel + ' - ' + baseName + '.json';
+  const parts = [nameVal, infoVal, styleLabel].filter(Boolean);
+  const baseName = parts.join(' - ');
   const jsonStr = JSON.stringify(currentJSON, null, 2);
   // If running inside the JVM WebView, hand off to the native bridge
   if (window._jvmBridge) {
-    window._jvmBridge.save(filename, jsonStr);
+    window._jvmBridge.save(baseName, jsonStr);
     return;
   }
   // Fallback: standard browser blob download
+  const filename = baseName + ' - 01.json';
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
