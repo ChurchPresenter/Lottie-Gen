@@ -44,7 +44,7 @@ input[type=file]{font-size:12px;color:var(--text-muted)}
 .btn-secondary{background:var(--bg-input);color:var(--text);border:1px solid var(--border-input)}
 .btn-secondary:hover{background:var(--border-input)}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap}
-#preview-container{background:var(--preview-bg);border-radius:8px;overflow:hidden;position:relative}
+#preview-container{background:var(--preview-bg);border-radius:8px;overflow:hidden;position:relative;border:1px solid var(--dot-border)}
 .controls-row{display:flex;gap:8px;align-items:center;width:100%;max-width:800px;padding:0 20px}
 .controls-row input[type=range]{flex:1}
 #preview-container svg,#preview-container canvas{display:block}
@@ -3652,8 +3652,11 @@ function generate() {
   document.getElementById('btnPlayPause').disabled = false;
   document.getElementById('seekBar').disabled = false;
 
-  document.getElementById('status').textContent =
-    `Generated: ${currentJSON.layers.length} layers, ${currentJSON.op} frames (${(currentJSON.op / fr).toFixed(1)}s)`;
+  const statusMsg = `Generated: ${currentJSON.layers.length} layers, ${currentJSON.op} frames (${(currentJSON.op / fr).toFixed(1)}s)`;
+  document.getElementById('status').textContent = statusMsg;
+  if (window._jvmBridge && _jvmBridge.status) {
+    _jvmBridge.status(statusMsg);
+  }
 }
 
 function download() {
