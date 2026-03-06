@@ -3613,36 +3613,44 @@ function generate() {
 
   currentJSON = builder.toJSON();
 
-  // Update preview
-  const container = document.getElementById('preview-container');
-  if (currentAnim) {
-    currentAnim.destroy();
-    currentAnim = null;
+  // Send preview to native Compose panel if running inside JVM WebView
+  if (window._jvmBridge && _jvmBridge.preview) {
+    _jvmBridge.preview(JSON.stringify(currentJSON));
   }
 
-  resizePreview();
+  // Lottie-web preview (standalone browser fallback)
+  const container = document.getElementById('preview-container');
+  if (container && container.offsetParent !== null) {
+    if (currentAnim) {
+      currentAnim.destroy();
+      currentAnim = null;
+    }
 
-  currentAnim = lottie.loadAnimation({
-    container: container,
-    renderer: 'svg',
-    loop: true,
-    autoplay: true,
-    animationData: JSON.parse(JSON.stringify(currentJSON))
-  });
+    resizePreview();
+
+    currentAnim = lottie.loadAnimation({
+      container: container,
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      animationData: JSON.parse(JSON.stringify(currentJSON))
+    });
+
+    document.getElementById('btnPlayPause').textContent = '⏸';
+
+    // Sync seek bar with animation
+    currentAnim.addEventListener('enterFrame', (e) => {
+      const bar = document.getElementById('seekBar');
+      bar.max = currentAnim.totalFrames;
+      bar.value = e.currentTime;
+      document.getElementById('frameDisplay').textContent =
+        Math.round(e.currentTime) + ' / ' + Math.round(currentAnim.totalFrames);
+    });
+  }
 
   document.getElementById('btnDownload').disabled = false;
   document.getElementById('btnPlayPause').disabled = false;
   document.getElementById('seekBar').disabled = false;
-  document.getElementById('btnPlayPause').textContent = '⏸';
-
-  // Sync seek bar with animation
-  currentAnim.addEventListener('enterFrame', (e) => {
-    const bar = document.getElementById('seekBar');
-    bar.max = currentAnim.totalFrames;
-    bar.value = e.currentTime;
-    document.getElementById('frameDisplay').textContent =
-      Math.round(e.currentTime) + ' / ' + Math.round(currentAnim.totalFrames);
-  });
 
   document.getElementById('status').textContent =
     `Generated: ${currentJSON.layers.length} layers, ${currentJSON.op} frames (${(currentJSON.op / fr).toFixed(1)}s)`;
