@@ -461,12 +461,30 @@ function loadLogoList() {
 
 document.getElementById('logoSelect').addEventListener('change', function() {
   if (this.value === '__custom__') {
-    document.getElementById('logoFile').click();
+    if (window._jvmBridge && _jvmBridge.chooseLogo) {
+      _jvmBridge.chooseLogo();
+    } else {
+      document.getElementById('logoFile').click();
+    }
     return;
   }
   if (!this.value) { clearLogo(); return; }
   setLogoFromURL(this.value);
 });
+// Called from native bridge after user picks a logo file
+function onLogoChosen(name, dataUrl) {
+  fetch('/api/logos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, data: dataUrl })
+  }).then(r => r.json()).then(res => {
+    loadLogoList();
+    setTimeout(() => {
+      document.getElementById('logoSelect').value = 'logos/' + res.file;
+      setLogoFromURL('logos/' + res.file);
+    }, 200);
+  }).catch(() => {});
+}
 
 document.getElementById('logoFile').addEventListener('change', function(e) {
   const file = e.target.files[0];
