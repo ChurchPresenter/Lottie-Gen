@@ -85,11 +85,14 @@ input[type=file]{font-size:12px;color:var(--text-muted)}
 
   <h2 class="collapsible" onclick="this.classList.toggle('open');this.nextElementSibling.style.display=this.classList.contains('open')?'block':'none';this.textContent=this.classList.contains('open')?'Canvas ▾':'Canvas ▸'">Canvas ▸</h2>
   <div style="display:none">
-    <div class="row" style="margin-bottom:6px">
-      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1920" data-h="1080">1080p</button>
-      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="3840" data-h="2160">4K</button>
-      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1080" data-h="1920">1080p Vert</button>
-      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="2160" data-h="3840">4K Vert</button>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1920" data-h="1080">16:9</button>
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1440" data-h="1080">4:3</button>
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1728" data-h="1080">16:10</button>
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="2560" data-h="1080">21:9</button>
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1080" data-h="1080">1:1</button>
+      <button type="button" class="btn-sm btn-secondary canvas-preset" data-w="1080" data-h="1920">9:16</button>
+      <span id="customPresets" style="display:contents"></span>
     </div>
     <div class="row">
       <div><label>Width</label><input type="number" id="canvasW" value="1920" min="100" max="7680"></div>
@@ -612,7 +615,7 @@ function renderLibrary() {
         <span class="preset-name" title="${p.name}">${p.name}</span>
         <span class="preset-texts">${name}${info ? ' — ' + info : ''}</span>
       </div>
-      <span class="preset-meta">${s} / ${a}</span>
+      <span class="preset-meta">${p.config.canvasW||1920}×${p.config.canvasH||1080} · ${s} / ${a}</span>
       <button class="btn-sm btn-secondary" onclick="event.stopPropagation();deletePreset(${i})">&times;</button>
     </div>`;
   }).join('');
@@ -3675,6 +3678,9 @@ function generate() {
   if (window._jvmBridge && _jvmBridge.status) {
     _jvmBridge.status(statusMsg);
   }
+
+  // Remember last used resolution
+  localStorage.setItem('last-canvas-size', JSON.stringify({w: cfg.canvasW, h: cfg.canvasH}));
 }
 
 function download() {
@@ -3729,12 +3735,65 @@ function scheduleGenerate(delay) {
   }, delay);
 }
 
+// Built-in preset dimensions for dedup check
+const BUILTIN_PRESETS = [[1920,1080],[1440,1080],[1728,1080],[2560,1080],[1080,1080],[1080,1920]];
+
+function loadCustomPresets() {
+  try { return JSON.parse(localStorage.getItem('custom-canvas-presets') || '[]'); }
+  catch { return []; }
+}
+
+function saveCustomPreset(w, h) {
+  if (BUILTIN_PRESETS.some(p => p[0]===w && p[1]===h)) return;
+  let custom = loadCustomPresets();
+  if (custom.some(p => p.w===w && p.h===h)) return;
+  custom.push({w, h});
+  if (custom.length > 10) custom.shift();
+  localStorage.setItem('custom-canvas-presets', JSON.stringify(custom));
+  renderCustomPresets();
+}
+
+function removeCustomPreset(index) {
+  let custom = loadCustomPresets();
+  custom.splice(index, 1);
+  localStorage.setItem('custom-canvas-presets', JSON.stringify(custom));
+  renderCustomPresets();
+}
+
+function renderCustomPresets() {
+  const container = document.getElementById('customPresets');
+  const custom = loadCustomPresets();
+  container.innerHTML = custom.map((p, i) =>
+    `<button type="button" class="btn-sm btn-secondary canvas-preset" data-w="${p.w}" data-h="${p.h}"
+       onclick="document.getElementById('canvasW').value=${p.w};document.getElementById('canvasH').value=${p.h};scheduleGenerate(100)">${p.w}×${p.h}
+       <span style="margin-left:4px;cursor:pointer;opacity:0.6" onclick="event.stopPropagation();removeCustomPreset(${i})">×</span></button>`
+  ).join('');
+}
+
 // Canvas preset buttons
 document.querySelectorAll('.canvas-preset').forEach(btn => {
   btn.addEventListener('click', () => {
     document.getElementById('canvasW').value = btn.dataset.w;
     document.getElementById('canvasH').value = btn.dataset.h;
     scheduleGenerate(100);
+  });
+});
+
+// Load saved custom presets on startup
+renderCustomPresets();
+
+// Save custom preset only after user leaves both canvas size fields
+['canvasW', 'canvasH'].forEach(id => {
+  document.getElementById(id).addEventListener('blur', () => {
+    setTimeout(() => {
+      const wEl = document.getElementById('canvasW');
+      const hEl = document.getElementById('canvasH');
+      if (document.activeElement !== wEl && document.activeElement !== hEl) {
+        const w = parseInt(wEl.value);
+        const h = parseInt(hEl.value);
+        if (w > 0 && h > 0) saveCustomPreset(w, h);
+      }
+    }, 100);
   });
 });
 
@@ -3828,6 +3887,15 @@ document.getElementById('btnSavePreset').addEventListener('click', () => savePre
 
 // Color library button
 document.getElementById('btnSaveColors').addEventListener('click', () => saveColorTheme());
+
+// Restore last used resolution
+try {
+  const last = JSON.parse(localStorage.getItem('last-canvas-size'));
+  if (last && last.w && last.h) {
+    document.getElementById('canvasW').value = last.w;
+    document.getElementById('canvasH').value = last.h;
+  }
+} catch {}
 
 // Auto-generate on load after fonts are ready
 document.fonts.ready.then(() => {
